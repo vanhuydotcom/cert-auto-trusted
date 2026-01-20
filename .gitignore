@@ -2,9 +2,10 @@
 dist/
 launcher/*.exe
 
-# Certificate files (user provides these)
-certs/cert.pem
-certs/key.pem
+# Certificate files - COMMENTED OUT to allow committing for GitHub Actions
+# If you want to keep certs private, use GitHub Secrets instead (see RELEASE_GUIDE.md)
+# certs/cert.pem
+# certs/key.pem
 
 # Other certificate formats
 *.crt

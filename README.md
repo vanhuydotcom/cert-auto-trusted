@@ -1,5 +1,8 @@
 # Certificate Auto-Trust Tool
 
+![Build and Release](https://github.com/vanhuydotcom/cert-auto-trusted/workflows/Build%20and%20Release/badge.svg)
+![Build Test](https://github.com/vanhuydotcom/cert-auto-trusted/workflows/Build%20Test/badge.svg)
+
 A Windows installer that automatically trusts your existing SSL certificates (cert.pem and key.pem) in the Windows certificate store.
 
 ## Features
@@ -56,11 +59,36 @@ If you need to trust the certificate again or on another machine:
 
 ## Building from Source
 
-### Prerequisites
+### Option 1: Automated Build (Recommended)
 
-1. **Your certificate files** - Place in project root:
-   - `cert.pem` - Your SSL certificate
-   - `key.pem` - Your private key (optional)
+**Using GitHub Actions** - Automatically builds and creates releases:
+
+1. **Push a version tag:**
+   ```bash
+   git tag -a v1.0.1 -m "Release v1.0.1"
+   git push origin v1.0.1
+   ```
+
+2. **GitHub Actions will automatically:**
+   - Build the installer on Windows
+   - Create a GitHub Release
+   - Upload the installer as a downloadable asset
+
+3. **Download from Releases:**
+   - Visit: `https://github.com/vanhuydotcom/cert-auto-trusted/releases`
+   - Download `CertAutoTrust-Setup-{version}.exe`
+
+See [.github/README.md](.github/README.md) for details.
+
+---
+
+### Option 2: Manual Build
+
+**Prerequisites:**
+
+1. **Your certificate files** - Place in `certs/` directory:
+   - `certs/cert.pem` - Your SSL certificate
+   - `certs/key.pem` - Your private key (optional)
 
 2. **ps2exe** - PowerShell to EXE converter
    ```powershell

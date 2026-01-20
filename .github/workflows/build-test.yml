@@ -1,0 +1,113 @@
+name: Build Test
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  test-build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check certificate files
+        shell: pwsh
+        run: |
+          Write-Host "Checking for certificate files..."
+          if (-not (Test-Path "certs\cert.pem")) {
+            Write-Warning "certs\cert.pem not found - this is expected for test builds"
+            Write-Host "Creating dummy certificate for testing..."
+
+            # Create dummy cert for testing
+            New-Item -ItemType Directory -Force -Path "certs" | Out-Null
+            @"
+-----BEGIN CERTIFICATE-----
+MIIDXTCCAkWgAwIBAgIJAKJ0000000000MA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
+BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
+aWRnaXRzIFB0eSBMdGQwHhcNMjQwMTAxMDAwMDAwWhcNMjUwMTAxMDAwMDAwWjBF
+MQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50
+ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB
+CgKCAQEA0000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000
+AQIDAQAB
+-----END CERTIFICATE-----
+"@ | Out-File -FilePath "certs\cert.pem" -Encoding ASCII
+
+            Write-Host "✓ Created dummy certificate for testing"
+          } else {
+            Write-Host "✓ Found certs\cert.pem"
+          }
+
+          if (-not (Test-Path "certs\key.pem")) {
+            Write-Host "Creating dummy key for testing..."
+            @"
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDTEST000000000
+0000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000
+AgMBAAE=
+-----END PRIVATE KEY-----
+"@ | Out-File -FilePath "certs\key.pem" -Encoding ASCII
+            Write-Host "✓ Created dummy key for testing"
+          }
+
+      - name: Install ps2exe
+        shell: pwsh
+        run: |
+          Write-Host "Installing ps2exe module..."
+          Install-Module -Name ps2exe -Scope CurrentUser -Force -Verbose
+          Write-Host "✓ ps2exe installed successfully"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          Write-Host "Downloading Inno Setup..."
+          $innoUrl = "https://jrsoftware.org/download.php/is.exe"
+          $innoInstaller = "$env:TEMP\innosetup.exe"
+
+          Invoke-WebRequest -Uri $innoUrl -OutFile $innoInstaller
+
+          Write-Host "Installing Inno Setup..."
+          Start-Process -FilePath $innoInstaller -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-" -Wait
+
+          Write-Host "✓ Inno Setup installed successfully"
+
+      - name: Test build
+        shell: pwsh
+        run: |
+          Write-Host "Testing build process..."
+          .\build.ps1
+
+          if (-not (Test-Path "dist\CertAutoTrust-Setup-1.0.0.exe")) {
+            Write-Error "Build test failed: Installer not found!"
+            exit 1
+          }
+
+          $fileSize = (Get-Item "dist\CertAutoTrust-Setup-1.0.0.exe").Length
+          Write-Host "✓ Build test completed successfully"
+          Write-Host "Installer size: $([math]::Round($fileSize/1MB, 2)) MB"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-installer
+          path: dist/CertAutoTrust-Setup-1.0.0.exe
+          retention-days: 7
+
+      - name: Test Summary
+        shell: pwsh
+        run: |
+          Write-Host "========================================" -ForegroundColor Green
+          Write-Host "✓ Build Test Passed!" -ForegroundColor Green
+          Write-Host "========================================" -ForegroundColor Green
+          Write-Host ""
+          Write-Host "The build process completed successfully."
+          Write-Host "Installer artifact uploaded for review."
+          Write-Host ""
