@@ -35,7 +35,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 
 ; UI configuration
 WizardStyle=modern
-SetupIconFile=icon.ico
+; SetupIconFile=icon.ico  ; Commented out - icon file not included
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 ; License and info files
