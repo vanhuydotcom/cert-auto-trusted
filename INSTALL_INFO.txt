@@ -1,28 +1,31 @@
 Certificate Auto-Trust Tool
 ============================
 
-This installer will automatically trust an SSL certificate on your Windows system.
+This installer adds a Root CA to your Windows Trusted Root Certification Authorities store.
 
 What this does:
-- Installs a pre-configured SSL certificate to your Windows certificate store
-- Adds the certificate to Trusted Root Certification Authorities
-- Enables HTTPS websites using this certificate to work without security warnings
-- Works with Chrome, Edge, and other browsers that use Windows certificate store
+- Installs a Root CA (rootCA.pem) into the Windows Trusted Root store (LocalMachine)
+- Any HTTPS server certificate signed by this Root CA will be trusted automatically
+- Works with Chrome, Edge, and other browsers that use the Windows certificate store
+
+What this does NOT install:
+- No private keys are bundled in this installer
+- No leaf/server certificates are installed; those live on the server only
 
 Requirements:
 - Windows 10 or later
-- Administrator privileges (required for certificate installation)
+- Administrator privileges (required to write to the Trusted Root store)
 
 After installation:
-- The certificate will be automatically trusted by Windows
-- You can verify by visiting your HTTPS website in Chrome or Edge
-- No security warnings should appear
+- The Root CA is trusted system-wide
+- Visit your HTTPS site (e.g. https://rfid-service.tech:8088) in Chrome or Edge - no warnings
+- Firefox uses its own store and is NOT affected by this installer
 
 Security Note:
-- Only install certificates from sources you trust
-- This certificate will be trusted system-wide
-- You can uninstall the application later, but the certificate will remain in the store
-- To remove the certificate, use Windows Certificate Manager (certmgr.msc)
+- Only install Root CAs from sources you trust; this CA can issue certificates that your
+  Windows machine will accept for any domain
+- To remove the Root CA later: open certmgr.msc -> Trusted Root Certification Authorities
+  -> Certificates, find the entry by Subject, and delete it
 
 For more information, see the README.md file in the installation directory.
 

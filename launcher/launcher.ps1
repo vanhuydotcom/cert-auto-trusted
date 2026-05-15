@@ -4,11 +4,14 @@
 # Get the directory where the launcher is located
 $launcherDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# Path to the main script and certificate files
+# Path to the main script and Root CA file. Installer places rootCA.pem
+# directly in the application directory (next to this launcher), so look
+# there first and fall back to a certs/ subfolder for dev/local runs.
 $mainScript = Join-Path $launcherDir "Main.ps1"
-$certsDir = Join-Path $launcherDir "certs"
-$certPath = Join-Path $certsDir "cert.pem"
-$keyPath = Join-Path $certsDir "key.pem"
+$certPath = Join-Path $launcherDir "rootCA.pem"
+if (-not (Test-Path $certPath)) {
+    $certPath = Join-Path (Join-Path $launcherDir "certs") "rootCA.pem"
+}
 
 # Check if Main.ps1 exists
 if (-not (Test-Path $mainScript)) {
@@ -22,11 +25,11 @@ if (-not (Test-Path $mainScript)) {
     exit 1
 }
 
-# Check if certificate files exist
+# Check if Root CA file exists
 if (-not (Test-Path $certPath)) {
     Add-Type -AssemblyName System.Windows.Forms
     [System.Windows.Forms.MessageBox]::Show(
-        "Certificate file not found: $certPath`n`nPlease ensure cert.pem is in the installation directory.",
+        "Root CA file not found: $certPath`n`nPlease ensure rootCA.pem is in the installation directory.",
         "Error",
         [System.Windows.Forms.MessageBoxButtons]::OK,
         [System.Windows.Forms.MessageBoxIcon]::Error
@@ -34,6 +37,6 @@ if (-not (Test-Path $certPath)) {
     exit 1
 }
 
-# Run the main script with certificate paths
-& PowerShell.exe -NoProfile -ExecutionPolicy Bypass -File $mainScript -CertPath $certPath -KeyPath $keyPath
+# Run the main script with the Root CA path
+& PowerShell.exe -NoProfile -ExecutionPolicy Bypass -File $mainScript -CertPath $certPath
 

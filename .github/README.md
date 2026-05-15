@@ -9,7 +9,9 @@ This directory contains automated CI/CD workflows for the Certificate Auto-Trust
 **Trigger:** When you push a version tag (e.g., `v1.0.0`, `v2.1.3`)
 
 **What it does:**
-- ✅ Checks for certificate files in `certs/` directory
+
+- ✅ Checks for `certs/rootCA.pem` (and validates it is a self-signed CA)
+- ✅ Refuses to build if any private key file is present in the repo
 - ✅ Installs ps2exe and Inno Setup on Windows runner
 - ✅ Builds the installer using `build.ps1`
 - ✅ Creates a GitHub Release automatically
@@ -17,6 +19,7 @@ This directory contains automated CI/CD workflows for the Certificate Auto-Trust
 - ✅ Generates release notes
 
 **Usage:**
+
 ```bash
 # Create and push a tag
 git tag -a v1.0.1 -m "Release v1.0.1"
@@ -29,6 +32,7 @@ git push origin v1.0.1
 ```
 
 **Output:**
+
 - GitHub Release at: `https://github.com/vanhuydotcom/cert-auto-trusted/releases`
 - Installer file: `CertAutoTrust-Setup-{version}.exe`
 
@@ -36,22 +40,27 @@ git push origin v1.0.1
 
 ### 2. Build Test (`build-test.yml`)
 
-**Trigger:** 
+**Trigger:**
+
 - Pull requests to `main` branch
 - Pushes to `main` branch
 - Manual trigger via GitHub UI
 
 **What it does:**
-- ✅ Tests the build process
-- ✅ Creates dummy certificates if needed (for testing)
+
+- ✅ Tests the build process end-to-end
+- ✅ Validates `certs/rootCA.pem` is present and is a self-signed CA
+- ✅ Verifies no private key files are accidentally committed
 - ✅ Verifies all build steps work correctly
 - ✅ Uploads test installer as artifact
 
 **Usage:**
+
 - Automatically runs on every PR and push to main
 - Manual trigger: Go to Actions tab → Build Test → Run workflow
 
 **Output:**
+
 - Build artifact available for 7 days
 - Build status visible in PR checks
 
@@ -62,11 +71,13 @@ git push origin v1.0.1
 ### Creating a New Release
 
 1. **Update version** in `installer/setup.iss` if needed:
+
    ```ini
    #define MyAppVersion "1.0.1"
    ```
 
 2. **Commit your changes:**
+
    ```bash
    git add .
    git commit -m "Prepare release v1.0.1"
@@ -74,6 +85,7 @@ git push origin v1.0.1
    ```
 
 3. **Create and push a tag:**
+
    ```bash
    git tag -a v1.0.1 -m "Release v1.0.1 - Bug fixes and improvements"
    git push origin v1.0.1
@@ -96,14 +108,18 @@ git push origin v1.0.1
 ### Required Files
 
 Both workflows require:
-- ✅ `certs/cert.pem` - Your SSL certificate
-- ✅ `certs/key.pem` - Your private key (optional)
+
+- ✅ `certs/rootCA.pem` - PUBLIC Root CA certificate (self-signed, CA:TRUE)
 - ✅ `build.ps1` - Build script
 - ✅ `installer/setup.iss` - Inno Setup configuration
+
+> Private keys (`*-key.pem`, `*.key`, `key.pem`, `*.pfx`, `*.p12`) MUST NOT be present
+> in the repo. The workflows fail the build if any are detected.
 
 ### Secrets
 
 No additional secrets required! The workflows use:
+
 - `GITHUB_TOKEN` - Automatically provided by GitHub Actions
 
 ### Runner
@@ -119,6 +135,7 @@ No additional secrets required! The workflows use:
 ## 📊 Workflow Status
 
 You can check workflow status:
+
 - **Actions tab:** `https://github.com/vanhuydotcom/cert-auto-trusted/actions`
 - **Badge:** Add to README.md:
   ```markdown
@@ -130,15 +147,21 @@ You can check workflow status:
 
 ## 🐛 Troubleshooting
 
-### Build fails with "cert.pem not found"
+### Build fails with "rootCA.pem not found"
 
-**For release.yml:**
-- Ensure `certs/cert.pem` is committed to the repository
+- Ensure `certs/rootCA.pem` is committed to the repository
 - Check the file is not in `.gitignore`
+- For mkcert users: copy from `mkcert -CAROOT`
 
-**For build-test.yml:**
-- This workflow creates dummy certificates automatically
-- Should not fail due to missing certificates
+### Build fails with "rootCA.pem is not self-signed" or "BasicConstraints CA:TRUE"
+
+- The file in `certs/rootCA.pem` is a leaf certificate, not a Root CA
+- Replace it with the correct Root CA file (e.g. mkcert's `rootCA.pem`)
+
+### Build fails with "Private key files detected in repository"
+
+- A `*-key.pem`, `*.key`, `key.pem`, `*.pfx`, or `*.p12` file is checked into the repo
+- Remove the file, then `git rm` it. The `.gitignore` should prevent this in the future.
 
 ### Inno Setup installation fails
 
@@ -164,31 +187,19 @@ You can check workflow status:
 
 ## 🔒 Security Notes
 
-### Certificate Files
+### What's in the repo and the installer
 
-⚠️ **Important:** The workflows expect certificate files to be in the repository.
+- ✅ `certs/rootCA.pem` (PUBLIC Root CA) - committed and bundled into the `.exe`
+- ❌ `rootCA-key.pem` (private CA key) - NEVER committed; lives only on the
+  CA-owner machine (e.g. mkcert's `-CAROOT` directory on macOS/Linux)
+- ❌ Server leaf cert + key (`server-cert.pem`, `server-key.pem`) - NEVER committed;
+  lives only on the HTTPS server (e.g. the RFID gate)
 
-**Options:**
+The Root CA public certificate is, by design, public information. It is shipped during
+every TLS handshake of every server that uses it. Committing it to the repo is safe.
+The matching private key is what must be guarded; if it leaks, the CA must be rotated.
 
-1. **Commit certificates** (if they're not sensitive):
-   ```bash
-   git add certs/cert.pem certs/key.pem
-   git commit -m "Add certificates"
-   ```
-
-2. **Use GitHub Secrets** (for sensitive certificates):
-   - Add certificates as secrets
-   - Modify workflow to create files from secrets:
-   ```yaml
-   - name: Create certificate files
-     run: |
-       echo "${{ secrets.CERT_PEM }}" > certs/cert.pem
-       echo "${{ secrets.KEY_PEM }}" > certs/key.pem
-   ```
-
-3. **Use encrypted files**:
-   - Encrypt with `gpg` or similar
-   - Decrypt in workflow using secret passphrase
+For full setup details see [GITHUB_ACTIONS_SETUP.md](../GITHUB_ACTIONS_SETUP.md).
 
 ---
 
@@ -209,6 +220,7 @@ Edit `build-test.yml` → `retention-days: 7` (change to desired days)
 ### Add notifications
 
 Add a notification step at the end:
+
 ```yaml
 - name: Notify on success
   uses: some-notification-action
@@ -225,4 +237,3 @@ Add a notification step at the end:
 ---
 
 **Questions?** Check the main [README.md](../README.md) or open an issue.
-

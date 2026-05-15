@@ -1,63 +1,61 @@
-# Certificate Files Directory
+# Root CA Files Directory
 
-## 📁 Place Your Certificate Files Here
+## 📁 What goes here
 
-This directory should contain your SSL certificate files:
+This directory ships **only the public Root CA** that the Windows installer will add to the
+Trusted Root Certification Authorities store:
 
-- **cert.pem** - Your SSL certificate (required)
-- **key.pem** - Your private key (optional but recommended)
+- **rootCA.pem** - Your Root CA public certificate (required)
 
-## 📝 File Format
+> ❗ **NEVER** put `rootCA-key.pem`, `key.pem`, or any other private key in this folder.
+> The `.gitignore` blocks `*-key.pem`, `*.key`, `key.pem`, etc., but you should still be
+> careful. The Root CA private key must stay on a single trusted machine only.
 
-Both files should be in PEM format (text files). They should look like:
+## 🔧 How to obtain `rootCA.pem`
 
-### cert.pem
+If you use [mkcert](https://github.com/FiloSottile/mkcert):
+
+```bash
+# On the machine that owns the Root CA
+mkcert -CAROOT
+# Copy the rootCA.pem from the printed path into this directory
+```
+
+The file should look like this:
+
 ```
 -----BEGIN CERTIFICATE-----
-MIIDXTCCAkWgAwIBAgIJAKJ...
-(base64 encoded certificate data)
-...
+MIIE...
 -----END CERTIFICATE-----
 ```
 
-### key.pem
+## ✅ Validation rules enforced by the installer
+
+The installer will REFUSE to install the file unless ALL of the following hold:
+
+1. ✅ It is a valid X.509 PEM certificate.
+2. ✅ It is **self-signed** (Subject == Issuer).
+3. ✅ It carries `BasicConstraints: CA:TRUE`.
+
+A leaf/server certificate (the one used by your gateway/server) MUST NOT be placed here —
+it would never be trusted by modern Chrome / Edge / Windows even if installed into the Root
+store.
+
+## 🖥️ Where do leaf (server) certs live then?
+
+Leaf certs (`server-cert.pem` + `server-key.pem`) belong on the **server** that serves HTTPS,
+not in this installer repo. Generate them with mkcert against your Root CA, e.g.:
+
+```bash
+mkcert -cert-file server-cert.pem -key-file server-key.pem \
+  rfid-service.tech 10.10.3.115 192.168.1.5 127.0.0.1
 ```
------BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0...
-(base64 encoded private key data)
-...
------END PRIVATE KEY-----
-```
 
-## ✅ Before Building
-
-Make sure:
-1. ✅ `cert.pem` exists in this directory
-2. ✅ `key.pem` exists in this directory (optional)
-3. ✅ Both files are valid PEM format
-4. ✅ Certificate matches your domain
-
-## 🔒 Security Note
-
-⚠️ **Important:** These files will be bundled into the installer. The private key will be included in the distributable .exe file. Only distribute the installer to trusted users/systems.
+Then copy those two files to the server only.
 
 ## 🚀 Quick Check
 
-To verify your files are in the right place, run from the project root:
-
 ```powershell
 # Windows PowerShell
-Test-Path certs\cert.pem
-Test-Path certs\key.pem
+Test-Path certs\rootCA.pem    # must be True
 ```
-
-Both should return `True` if files are present.
-
-## 📖 Examples
-
-See the example files in this directory:
-- `cert.pem.example` - Template for certificate file
-- `key.pem.example` - Template for private key file
-
-Copy your actual certificate content into `cert.pem` and `key.pem` files.
-

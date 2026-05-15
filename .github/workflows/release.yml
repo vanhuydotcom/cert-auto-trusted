@@ -3,70 +3,85 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*.*.*'  # Triggers on version tags like v1.0.0, v2.1.3, etc.
+      - "v*.*.*" # Triggers on version tags like v1.0.0, v2.1.3, etc.
 
 permissions:
-  contents: write  # Required for creating releases and uploading assets
+  contents: write # Required for creating releases and uploading assets
 
 jobs:
   build-and-release:
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Check certificate files
+
+      - name: Check Root CA file
         shell: pwsh
         run: |
-          Write-Host "Checking for certificate files..."
-          if (-not (Test-Path "certs\cert.pem")) {
-            Write-Error "ERROR: certs\cert.pem not found!"
-            Write-Host "Please ensure cert.pem is committed to the repository or use secrets."
+          Write-Host "Checking for Root CA file..."
+          if (-not (Test-Path "certs\rootCA.pem")) {
+            Write-Error "ERROR: certs\rootCA.pem not found!"
+            Write-Host "Please commit certs\rootCA.pem to the repository (see GITHUB_ACTIONS_SETUP.md)."
             exit 1
           }
-          Write-Host "✓ Found certs\cert.pem"
-          
-          if (Test-Path "certs\key.pem") {
-            Write-Host "✓ Found certs\key.pem"
-          } else {
-            Write-Host "⚠ Warning: certs\key.pem not found (optional)"
+          Write-Host "✓ Found certs\rootCA.pem"
+
+          # Validate it is a self-signed CA before bundling
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2("certs\rootCA.pem")
+          if ($cert.Subject -ne $cert.Issuer) {
+            Write-Error "rootCA.pem is not self-signed (Subject != Issuer). Refusing to build."
+            exit 1
           }
-      
+          $bc = $cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.19' }
+          if (-not $bc -or -not $bc.CertificateAuthority) {
+            Write-Error "rootCA.pem does not have BasicConstraints CA:TRUE. Refusing to build."
+            exit 1
+          }
+          Write-Host "✓ Root CA validation passed (Subject: $($cert.Subject))"
+
+          # Safety net: refuse to build if any private key sneaked into the repo
+          $leaked = Get-ChildItem -Recurse -File -Include *-key.pem,*.key,key.pem,*.pfx,*.p12 -ErrorAction SilentlyContinue
+          if ($leaked) {
+            Write-Error "Private key files detected in repository: $($leaked.FullName -join ', ')"
+            exit 1
+          }
+          Write-Host "✓ No private key files found in repository"
+
       - name: Install ps2exe
         shell: pwsh
         run: |
           Write-Host "Installing ps2exe module..."
           Install-Module -Name ps2exe -Scope CurrentUser -Force -Verbose
           Write-Host "✓ ps2exe installed successfully"
-      
+
       - name: Install Inno Setup
         shell: pwsh
         run: |
           Write-Host "Downloading Inno Setup..."
           $innoUrl = "https://jrsoftware.org/download.php/is.exe"
           $innoInstaller = "$env:TEMP\innosetup.exe"
-          
+
           Invoke-WebRequest -Uri $innoUrl -OutFile $innoInstaller
-          
+
           Write-Host "Installing Inno Setup..."
           Start-Process -FilePath $innoInstaller -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-" -Wait
-          
+
           Write-Host "✓ Inno Setup installed successfully"
-      
+
       - name: Build installer
         shell: pwsh
         run: |
           Write-Host "Building installer..."
           .\build.ps1
-          
+
           if (-not (Test-Path "dist\CertAutoTrust-Setup-1.0.0.exe")) {
             Write-Error "Build failed: Installer not found!"
             exit 1
           }
-          
+
           Write-Host "✓ Build completed successfully"
-      
+
       - name: Get version from tag
         id: get_version
         shell: pwsh
@@ -76,19 +91,19 @@ jobs:
           echo "VERSION=$version" >> $env:GITHUB_OUTPUT
           echo "Tag: $tag"
           echo "Version: $version"
-      
+
       - name: Rename installer with version
         shell: pwsh
         run: |
           $version = "${{ steps.get_version.outputs.VERSION }}"
           $oldName = "dist\CertAutoTrust-Setup-1.0.0.exe"
           $newName = "dist\CertAutoTrust-Setup-$version.exe"
-          
+
           if (Test-Path $oldName) {
             Move-Item -Path $oldName -Destination $newName -Force
             Write-Host "✓ Renamed installer to: $newName"
           }
-      
+
       - name: Create Release and Upload Asset
         shell: pwsh
         env:
@@ -106,21 +121,22 @@ jobs:
 
           ### 📦 What's Included
 
-          - **CertAutoTrust-Setup-$version.exe** - Windows installer
+          - **CertAutoTrust-Setup-$version.exe** - Windows installer that adds the Root CA
+            (``rootCA.pem``) to the Windows Trusted Root Certification Authorities store.
 
           ### 🚀 Installation
 
           1. Download ``CertAutoTrust-Setup-$version.exe``
           2. Right-click and select "Run as Administrator"
           3. Follow the installation wizard
-          4. Click "Yes" when prompted to install the certificate
+          4. Click "Yes" when prompted to install the Root CA
 
           ### ✨ Features
 
-          - Automatically installs SSL certificate to Windows Trusted Root CA
-          - Eliminates "Your connection is not private" warnings
-          - Works with Chrome, Edge, and other browsers using Windows certificate store
-          - Simple one-click installation
+          - Installs a Root CA into the Windows trust store (LocalMachine)
+          - Eliminates "Your connection is not private" warnings for any HTTPS site
+            whose certificate is signed by this Root CA
+          - Works with Chrome, Edge, and other browsers using the Windows certificate store
 
           ### 📋 Requirements
 
@@ -129,7 +145,9 @@ jobs:
 
           ### 🔒 Security Note
 
-          This installer contains the certificate and private key. Only install if you trust the source.
+          This installer contains ONLY the public Root CA certificate. No private keys are
+          bundled. Only install Root CAs from sources you trust — a Root CA in your trust
+          store can issue certificates for any domain that your machine will accept.
 
           ---
 
@@ -146,7 +164,7 @@ jobs:
             "$installerPath"
 
           Write-Host "✓ Release created and installer uploaded successfully!"
-      
+
       - name: Build Summary
         shell: pwsh
         run: |
@@ -158,4 +176,3 @@ jobs:
           Write-Host "Tag: ${{ github.ref_name }}"
           Write-Host "Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
           Write-Host ""
-

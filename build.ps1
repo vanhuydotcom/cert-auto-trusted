@@ -20,22 +20,15 @@ if ($PSVersionTable.Platform -and $PSVersionTable.Platform -ne 'Win32NT') {
     exit 1
 }
 
-# Check if cert.pem and key.pem exist in certs directory
-if (-not (Test-Path "certs\cert.pem")) {
-    Write-Host "ERROR: cert.pem not found in certs directory!" -ForegroundColor Red
-    Write-Host "Please place your cert.pem file in the certs\ directory." -ForegroundColor Yellow
+# Check if rootCA.pem exists in certs directory
+if (-not (Test-Path "certs\rootCA.pem")) {
+    Write-Host "ERROR: rootCA.pem not found in certs directory!" -ForegroundColor Red
+    Write-Host "Run 'mkcert -CAROOT' on the source machine and copy rootCA.pem into certs\." -ForegroundColor Yellow
     exit 1
 }
 
-if (-not (Test-Path "certs\key.pem")) {
-    Write-Host "WARNING: key.pem not found in certs directory!" -ForegroundColor Yellow
-    Write-Host "The installer will be created without the private key file." -ForegroundColor Yellow
-    Write-Host ""
-}
-
-Write-Host "Found certificate files:" -ForegroundColor Green
-Write-Host "  - certs\cert.pem: $(if (Test-Path 'certs\cert.pem') { 'OK' } else { 'MISSING' })" -ForegroundColor Cyan
-Write-Host "  - certs\key.pem: $(if (Test-Path 'certs\key.pem') { 'OK' } else { 'MISSING' })" -ForegroundColor Cyan
+Write-Host "Found Root CA file:" -ForegroundColor Green
+Write-Host "  - certs\rootCA.pem: OK" -ForegroundColor Cyan
 Write-Host ""
 
 # Create necessary directories

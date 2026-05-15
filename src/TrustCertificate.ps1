@@ -1,5 +1,5 @@
-# Trust Certificate in Windows Certificate Store
-# Adds certificate to Trusted Root Certification Authorities
+# Trust Root CA in Windows Certificate Store
+# Adds a self-signed Root CA to Trusted Root Certification Authorities
 
 param(
     [Parameter(Mandatory=$false)]
@@ -38,7 +38,19 @@ try {
         exit 1
     }
     
-    Write-Host "Adding certificate to Trusted Root Certification Authorities..." -ForegroundColor Green
+    # Reject leaf certificates (must be a self-signed CA)
+    if ($cert.Subject -ne $cert.Issuer) {
+        Write-Host "ERROR: Refusing to install. Certificate is not self-signed (Subject != Issuer)." -ForegroundColor Red
+        Write-Host "Only self-signed Root CAs may be added to the Trusted Root store." -ForegroundColor Yellow
+        exit 1
+    }
+    $bc = $cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.19' }
+    if (-not $bc -or -not $bc.CertificateAuthority) {
+        Write-Host "ERROR: Refusing to install. Certificate does not have BasicConstraints CA:TRUE." -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "Adding Root CA to Trusted Root Certification Authorities..." -ForegroundColor Green
     Write-Host "Subject: $($cert.Subject)" -ForegroundColor Cyan
     Write-Host "Thumbprint: $($cert.Thumbprint)" -ForegroundColor Cyan
     

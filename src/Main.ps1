@@ -1,12 +1,9 @@
 # Main Certificate Auto-Trust Application
-# Trusts existing SSL certificates on Windows
+# Trusts an SSL Root CA certificate on Windows
 
 param(
     [Parameter(Mandatory=$false)]
-    [string]$CertPath = ".\certs\cert.pem",
-
-    [Parameter(Mandatory=$false)]
-    [string]$KeyPath = ".\certs\key.pem",
+    [string]$CertPath = ".\certs\rootCA.pem",
 
     [Parameter(Mandatory=$false)]
     [switch]$Silent
@@ -19,7 +16,7 @@ Set-Location $scriptPath
 if (-not $Silent) {
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "  Certificate Auto-Trust Tool" -ForegroundColor Cyan
-    Write-Host "  Install SSL Certificate to Windows" -ForegroundColor Cyan
+    Write-Host "  Install Root CA to Windows" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host ""
 }
@@ -49,9 +46,6 @@ if (-not (Test-Path $CertPath)) {
 
 if (-not $Silent) {
     Write-Host "Certificate file: $CertPath" -ForegroundColor Cyan
-    if (Test-Path $KeyPath) {
-        Write-Host "Key file: $KeyPath" -ForegroundColor Cyan
-    }
     Write-Host ""
 }
 
@@ -70,8 +64,26 @@ try {
     Write-Host "  Thumbprint: $($cert.Thumbprint)" -ForegroundColor Cyan
     Write-Host ""
 
+    # Validate that this is a self-signed Root CA
+    if ($cert.Subject -ne $cert.Issuer) {
+        Write-Host "ERROR: Certificate is NOT a self-signed Root CA!" -ForegroundColor Red
+        Write-Host "  Subject and Issuer must match for a Root CA." -ForegroundColor Red
+        Write-Host "  This file appears to be a leaf certificate, not a Root CA." -ForegroundColor Yellow
+        Write-Host "  Use the rootCA.pem produced by mkcert (run 'mkcert -CAROOT')." -ForegroundColor Yellow
+        if (-not $Silent) { Read-Host "Press Enter to exit" }
+        exit 1
+    }
+
+    $basicConstraints = $cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.19' }
+    if (-not $basicConstraints -or -not $basicConstraints.CertificateAuthority) {
+        Write-Host "ERROR: Certificate does not have BasicConstraints CA:TRUE!" -ForegroundColor Red
+        Write-Host "  Modern Windows / Chrome require this flag on Root CAs." -ForegroundColor Yellow
+        if (-not $Silent) { Read-Host "Press Enter to exit" }
+        exit 1
+    }
+
     # Trust the certificate
-    Write-Host "Installing certificate to Trusted Root Certification Authorities..." -ForegroundColor Green
+    Write-Host "Installing Root CA to Trusted Root Certification Authorities..." -ForegroundColor Green
 
     $trustScript = Join-Path $scriptPath "TrustCertificate.ps1"
     $result = & $trustScript -Certificate $cert

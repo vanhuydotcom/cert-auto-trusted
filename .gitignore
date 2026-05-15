@@ -2,14 +2,22 @@
 dist/
 launcher/*.exe
 
-# Certificate files - COMMENTED OUT to allow committing for GitHub Actions
-# If you want to keep certs private, use GitHub Secrets instead (see RELEASE_GUIDE.md)
-# certs/cert.pem
-# certs/key.pem
+# Private keys - NEVER commit these
+*-key.pem
+*.key
+key.pem
+rootCA-key.pem
+private*.pem
 
-# Other certificate formats
+# Leaf server certs (do not ship via this installer repo)
+certs/cert.pem
+certs/server-*.pem
+
+# Other certificate / keystore formats that may contain secrets
 *.crt
 *.pfx
+*.p12
+*.jks
 
 # Windows
 Thumbs.db

@@ -2,10 +2,10 @@ name: Build Test
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
   push:
-    branches: [ main ]
-  workflow_dispatch:  # Allow manual trigger
+    branches: [main]
+  workflow_dispatch: # Allow manual trigger
 
 jobs:
   test-build:
@@ -15,48 +15,36 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check certificate files
+      - name: Check Root CA file
         shell: pwsh
         run: |
-          Write-Host "Checking for certificate files..."
-          if (-not (Test-Path "certs\cert.pem")) {
-            Write-Warning "certs\cert.pem not found - this is expected for test builds"
-            Write-Host "Creating dummy certificate for testing..."
-
-            # Create dummy cert for testing
-            New-Item -ItemType Directory -Force -Path "certs" | Out-Null
-            @"
------BEGIN CERTIFICATE-----
-MIIDXTCCAkWgAwIBAgIJAKJ0000000000MA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
-BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
-aWRnaXRzIFB0eSBMdGQwHhcNMjQwMTAxMDAwMDAwWhcNMjUwMTAxMDAwMDAwWjBF
-MQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50
-ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB
-CgKCAQEA0000000000000000000000000000000000000000000000000000000000
-0000000000000000000000000000000000000000000000000000000000000000000
-0000000000000000000000000000000000000000000000000000000000000000000
-0000000000000000000000000000000000000000000000000000000000000000000
-AQIDAQAB
------END CERTIFICATE-----
-"@ | Out-File -FilePath "certs\cert.pem" -Encoding ASCII
-
-            Write-Host "✓ Created dummy certificate for testing"
-          } else {
-            Write-Host "✓ Found certs\cert.pem"
+          Write-Host "Checking for Root CA file..."
+          if (-not (Test-Path "certs\rootCA.pem")) {
+            Write-Error "certs\rootCA.pem not found! Commit it before opening a PR (see GITHUB_ACTIONS_SETUP.md)."
+            exit 1
           }
+          Write-Host "✓ Found certs\rootCA.pem"
 
-          if (-not (Test-Path "certs\key.pem")) {
-            Write-Host "Creating dummy key for testing..."
-            @"
------BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDTEST000000000
-0000000000000000000000000000000000000000000000000000000000000000000
-0000000000000000000000000000000000000000000000000000000000000000000
-AgMBAAE=
------END PRIVATE KEY-----
-"@ | Out-File -FilePath "certs\key.pem" -Encoding ASCII
-            Write-Host "✓ Created dummy key for testing"
+          # Validate it is a self-signed CA
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2("certs\rootCA.pem")
+          if ($cert.Subject -ne $cert.Issuer) {
+            Write-Error "rootCA.pem is not self-signed (Subject != Issuer)."
+            exit 1
           }
+          $bc = $cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.19' }
+          if (-not $bc -or -not $bc.CertificateAuthority) {
+            Write-Error "rootCA.pem does not have BasicConstraints CA:TRUE."
+            exit 1
+          }
+          Write-Host "✓ Root CA validation passed"
+
+          # Safety net: refuse to build if any private key is present
+          $leaked = Get-ChildItem -Recurse -File -Include *-key.pem,*.key,key.pem,*.pfx,*.p12 -ErrorAction SilentlyContinue
+          if ($leaked) {
+            Write-Error "Private key files detected in repository: $($leaked.FullName -join ', ')"
+            exit 1
+          }
+          Write-Host "✓ No private key files found in repository"
 
       - name: Install ps2exe
         shell: pwsh

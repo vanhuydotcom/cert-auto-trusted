@@ -55,9 +55,9 @@ Source: "..\src\Main.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\src\TrustCertificate.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\launcher\CertAutoTrust.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion isreadme
-; Certificate files (user should place cert.pem and key.pem in certs folder before building)
-Source: "..\certs\cert.pem"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\certs\key.pem"; DestDir: "{app}"; Flags: ignoreversion; AfterInstall: SetFilePermissions
+; Root CA public certificate (user must place rootCA.pem in certs folder before building)
+; The private key (rootCA-key.pem) is NEVER bundled.
+Source: "..\certs\rootCA.pem"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Comment: "Generate and trust SSL certificates"
@@ -80,15 +80,6 @@ begin
   end;
 end;
 
-procedure SetFilePermissions();
-var
-  KeyFile: String;
-begin
-  // Restrict access to key.pem file
-  KeyFile := ExpandConstant('{app}\key.pem');
-  // Note: Additional security can be added here using icacls or similar
-end;
-
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
@@ -98,8 +89,8 @@ begin
   begin
     AppPath := ExpandConstant('{app}');
 
-    // Automatically run the certificate trust tool after installation
-    if MsgBox('Do you want to install and trust the certificate now?', mbConfirmation, MB_YESNO) = IDYES then
+    // Automatically run the Root CA trust tool after installation
+    if MsgBox('Do you want to install and trust the Root CA now?', mbConfirmation, MB_YESNO) = IDYES then
     begin
       Exec(ExpandConstant('{app}\CertAutoTrust.exe'), '', AppPath, SW_SHOW, ewWaitUntilTerminated, ResultCode);
     end;

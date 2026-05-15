@@ -3,14 +3,14 @@
 ![Build and Release](https://github.com/vanhuydotcom/cert-auto-trusted/workflows/Build%20and%20Release/badge.svg)
 ![Build Test](https://github.com/vanhuydotcom/cert-auto-trusted/workflows/Build%20Test/badge.svg)
 
-A Windows installer that automatically trusts your existing SSL certificates (cert.pem and key.pem) in the Windows certificate store.
+A Windows installer that adds a self-signed Root CA (`rootCA.pem`) to the Windows Trusted Root Certification Authorities store. Any HTTPS server certificate signed by that Root CA will then be trusted automatically by Windows, Chrome, and Edge.
 
 ## Features
 
-- ✅ Automatically trust existing SSL certificates in Windows certificate store
+- ✅ Installs a Root CA into the Windows trust store (LocalMachine)
 - 🖥️ Simple one-click installation
 - 📦 Easy-to-use Windows installer (.exe)
-- � Adds certificates to Trusted Root Certification Authorities
+- 🔒 Bundles ONLY the public Root CA — no private keys are shipped
 - ⚡ Works with Chrome, Edge, and other browsers using Windows cert store
 
 ## Requirements
@@ -39,23 +39,26 @@ After installation, the certificate will be automatically trusted in Windows. Yo
 
 ### Manual Trust (if needed)
 
-If you need to trust the certificate again or on another machine:
+If you need to trust the Root CA again or on another machine:
 
 1. Run `CertAutoTrust.exe` from the installation directory as Administrator
-2. The certificate will be installed to Trusted Root Certification Authorities
+2. The Root CA will be installed to Trusted Root Certification Authorities
 
 ### Command-Line Usage
 
 ```powershell
-# Trust the bundled certificate
-.\Main.ps1 -CertPath ".\cert.pem"
+# Trust the bundled Root CA
+.\Main.ps1 -CertPath ".\rootCA.pem"
 
-# Trust a different certificate
-.\Main.ps1 -CertPath "C:\path\to\your\cert.pem"
+# Trust a different Root CA
+.\Main.ps1 -CertPath "C:\path\to\your\rootCA.pem"
 
 # Silent mode (no prompts)
-.\Main.ps1 -CertPath ".\cert.pem" -Silent
+.\Main.ps1 -CertPath ".\rootCA.pem" -Silent
 ```
+
+> The script refuses to install any certificate that is not a self-signed CA
+> (Subject must equal Issuer and `BasicConstraints CA:TRUE` must be present).
 
 ## Building from Source
 
@@ -64,6 +67,7 @@ If you need to trust the certificate again or on another machine:
 **Using GitHub Actions** - Automatically builds and creates releases:
 
 1. **Push a version tag:**
+
    ```bash
    git tag -a v1.0.1 -m "Release v1.0.1"
    git push origin v1.0.1
@@ -86,11 +90,14 @@ See [.github/README.md](.github/README.md) for details.
 
 **Prerequisites:**
 
-1. **Your certificate files** - Place in `certs/` directory:
-   - `certs/cert.pem` - Your SSL certificate
-   - `certs/key.pem` - Your private key (optional)
+1. **Your Root CA** - Place in `certs/` directory:
+   - `certs/rootCA.pem` - Your self-signed Root CA (PUBLIC certificate only)
+
+   If you use mkcert, copy it from `mkcert -CAROOT`. NEVER place
+   `rootCA-key.pem` or any private key here.
 
 2. **ps2exe** - PowerShell to EXE converter
+
    ```powershell
    Install-Module -Name ps2exe -Scope CurrentUser
    ```
@@ -101,11 +108,12 @@ See [.github/README.md](.github/README.md) for details.
 
 ### Build Steps
 
-1. **Place your certificate files** in the project root:
+1. **Place the Root CA** in the `certs/` directory:
+
    ```
    cert auto trusted/
-   ├── cert.pem    <-- Your certificate here
-   ├── key.pem     <-- Your private key here
+   ├── certs/
+   │   └── rootCA.pem    <-- Your Root CA here (public cert only)
    └── ...
    ```
 
@@ -114,6 +122,7 @@ See [.github/README.md](.github/README.md) for details.
 3. Navigate to the project directory
 
 4. Run the build script:
+
    ```powershell
    .\build.ps1
    ```
@@ -134,11 +143,12 @@ See [.github/README.md](.github/README.md) for details.
 
 ```
 cert-auto-trusted/
-├── cert.pem                  # Your SSL certificate (place here before building)
-├── key.pem                   # Your private key (place here before building)
+├── certs/
+│   ├── rootCA.pem            # PUBLIC Root CA (place here before building)
+│   └── README.md
 ├── src/
 │   ├── Main.ps1              # Main application entry point
-│   └── TrustCertificate.ps1  # Certificate trust automation
+│   └── TrustCertificate.ps1  # Root CA trust automation
 ├── launcher/
 │   ├── launcher.ps1          # PowerShell launcher script
 │   └── CertAutoTrust.exe     # Compiled launcher (generated)
@@ -151,32 +161,36 @@ cert-auto-trusted/
 
 ## How It Works
 
-1. **Certificate Loading**: Loads your existing cert.pem file
-2. **Trust Automation**: Adds certificate to Windows' Trusted Root Certification Authorities store
-3. **Packaging**: Bundles certificate with installer, converts PowerShell scripts to EXE using ps2exe, and creates installer with Inno Setup
+1. **Validation**: Loads `rootCA.pem` and refuses to proceed unless it is a self-signed CA (Subject == Issuer + `BasicConstraints CA:TRUE`)
+2. **Trust Automation**: Adds the Root CA to Windows' Trusted Root Certification Authorities store (LocalMachine)
+3. **Packaging**: Bundles ONLY the public Root CA, converts the PowerShell launcher to EXE via ps2exe, and creates an installer with Inno Setup
 
 ## Security Notes
 
 ⚠️ **Important Security Considerations:**
 
-- This tool installs certificates to the **Trusted Root Certification Authorities** store
-- Only use with certificates you trust and control
+- This tool installs a Root CA into the **Trusted Root Certification Authorities** store; that CA can issue certificates trusted for ANY domain on the target machine
+- Only install Root CAs you trust and control
 - Administrator privileges are required to modify the Windows certificate store
-- The private key (key.pem) is bundled with the installer - ensure secure distribution
-- Only install certificates for domains you own and control
+- **No private keys** are bundled with the installer; the Root CA private key (`rootCA-key.pem`) must stay on the CA-owner machine only
+- Server-side leaf certs (`server-cert.pem` + `server-key.pem`) live on the HTTPS server, not in this repo
 
 ## Troubleshooting
 
 ### "Script execution is disabled"
+
 Run PowerShell as Administrator and execute:
+
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
 ### "Not running as Administrator"
+
 Right-click the application and select "Run as Administrator"
 
 ### Certificate not trusted in browsers
+
 - Restart your browser after installing the certificate
 - Some browsers (like Firefox) use their own certificate store
 - For Chrome/Edge, the Windows certificate store is used automatically
@@ -192,4 +206,3 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 ## Support
 
 For issues and questions, please open an issue on the GitHub repository.
-

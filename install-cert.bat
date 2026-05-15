@@ -1,6 +1,6 @@
 @echo off
 REM Quick installer script for testing without building full installer
-REM Run this as Administrator to trust your cert.pem
+REM Run this as Administrator to trust your rootCA.pem
 
 echo ========================================
 echo   Certificate Auto-Trust Tool
@@ -18,22 +18,22 @@ if %errorLevel% neq 0 (
     exit /b 1
 )
 
-REM Check if cert.pem exists in certs directory
-if not exist "certs\cert.pem" (
-    echo ERROR: cert.pem not found in certs directory!
-    echo Please place your cert.pem file in the certs\ folder and try again.
+REM Check if rootCA.pem exists in certs directory
+if not exist "certs\rootCA.pem" (
+    echo ERROR: rootCA.pem not found in certs directory!
+    echo Please place your rootCA.pem file in the certs\ folder and try again.
     echo.
     pause
     exit /b 1
 )
 
-echo Found certs\cert.pem
+echo Found certs\rootCA.pem
 echo.
-echo Installing certificate to Windows Trusted Root store...
+echo Installing Root CA to Windows Trusted Root store...
 echo.
 
-REM Run PowerShell script to install certificate
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "src\Main.ps1" -CertPath "certs\cert.pem" -KeyPath "certs\key.pem"
+REM Run PowerShell script to install Root CA
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "src\Main.ps1" -CertPath "certs\rootCA.pem"
 
 echo.
 echo ========================================

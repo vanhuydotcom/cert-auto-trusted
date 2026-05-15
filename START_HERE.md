@@ -22,20 +22,22 @@ Choose the guide that matches your needs:
 
 ## 🎯 Quick Build Guide (3 Steps)
 
-### Step 1: Prepare Your Files
+### Step 1: Prepare Your Root CA
 
-1. **Get your certificate files ready:**
-   - `cert.pem` - Your SSL certificate
-   - `key.pem` - Your private key
+1. **Get your Root CA public certificate:**
+   - `rootCA.pem` - Your self-signed Root CA (PUBLIC certificate only)
 
-2. **Copy them to the `certs` directory**
+   If you use mkcert, get it from `mkcert -CAROOT`.
+   ⚠️ NEVER include `rootCA-key.pem` or any other private key.
+
+2. **Copy it to the `certs` directory**
 
    Your directory should look like:
+
    ```
    cert auto trusted/
    ├── certs/
-   │   ├── cert.pem      ← Your certificate here
-   │   └── key.pem       ← Your private key here
+   │   └── rootCA.pem    ← Your Root CA here (public cert only)
    ├── START_HERE.md     ← This file
    ├── build.ps1
    └── ...
@@ -51,6 +53,7 @@ Install-Module -Name ps2exe -Scope CurrentUser -Force
 ```
 
 Then download and install **Inno Setup**:
+
 - Go to: https://jrsoftware.org/isdl.php
 - Download the latest version (6.x recommended)
 - Install with default settings
@@ -64,6 +67,7 @@ Open PowerShell **as Administrator** in this directory and run:
 ```
 
 **That's it!** Your installer will be created at:
+
 ```
 dist/CertAutoTrust-Setup-1.0.0.exe
 ```
@@ -72,40 +76,48 @@ dist/CertAutoTrust-Setup-1.0.0.exe
 
 ## 🧪 Quick Test (Without Building Full Installer)
 
-Want to test if your certificate works before building the full installer?
+Want to test if your Root CA installs correctly before building the full installer?
 
-1. Place `cert.pem` and `key.pem` in the `certs` directory
+1. Place `rootCA.pem` in the `certs` directory
 2. Right-click `install-cert.bat`
 3. Select "Run as Administrator"
-4. Your certificate will be installed directly
+4. Your Root CA will be installed directly
 
 ---
 
 ## ❓ Common Questions
 
 ### Q: I'm not on Windows, can I still build this?
+
 **A:** No, this must be built on Windows. You can use a Windows VM or a Windows machine.
 
-### Q: Do I need both cert.pem and key.pem?
-**A:** cert.pem is required. key.pem is optional but recommended.
+### Q: What goes in `certs/`?
+
+**A:** ONLY `rootCA.pem` (the PUBLIC Root CA certificate). The matching private key
+(`rootCA-key.pem`) must NEVER be placed here or committed to git.
 
 ### Q: What if I don't have Inno Setup?
+
 **A:** Download it from https://jrsoftware.org/isdl.php - it's free and required for building the installer.
 
 ### Q: Can I customize the installer?
+
 **A:** Yes! Edit `installer/setup.iss` to change the app name, version, publisher, etc.
 
 ### Q: Is this safe?
-**A:** Yes, but the installer will bundle your private key. Only distribute to trusted users/systems.
+
+**A:** The installer ships only the public Root CA. No private keys are bundled. End users
+should still only install Root CAs from sources they trust, since a Root CA can issue
+certificates trusted for any domain on their machine.
 
 ---
 
 ## 🎓 What Happens When You Build?
 
-1. **build.ps1** checks for your cert.pem and key.pem
+1. **build.ps1** checks for `certs/rootCA.pem`
 2. **ps2exe** converts the PowerShell launcher to an .exe file
-3. **Inno Setup** bundles everything into a Windows installer
-4. **Output:** A professional installer that users can run to trust your certificate
+3. **Inno Setup** bundles the Root CA + launcher into a Windows installer
+4. **Output:** A professional installer that users can run to trust the Root CA
 
 ---
 
@@ -119,6 +131,7 @@ dist/
 ```
 
 Users just need to:
+
 1. Right-click the installer
 2. Select "Run as Administrator"
 3. Follow the wizard
@@ -129,16 +142,20 @@ Users just need to:
 
 ## 🆘 Need Help?
 
-### Build fails with "cert.pem not found"
-→ Make sure cert.pem is in the certs directory (certs/cert.pem)
+### Build fails with "rootCA.pem not found"
+
+→ Make sure rootCA.pem is in the certs directory (certs/rootCA.pem)
 
 ### Build fails with "ps2exe not found"
+
 → Run: `Install-Module -Name ps2exe -Scope CurrentUser -Force`
 
 ### Build fails with "Inno Setup not found"
+
 → Install Inno Setup from https://jrsoftware.org/isdl.php
 
 ### Certificate not trusted after installation
+
 → Make sure you ran the installer as Administrator
 → Restart your browser
 → Check Windows Certificate Manager (certmgr.msc)
@@ -165,4 +182,3 @@ Users just need to:
 ---
 
 **Ready to build?** Follow the 3 steps above and you'll have your installer in minutes! 🚀
-
