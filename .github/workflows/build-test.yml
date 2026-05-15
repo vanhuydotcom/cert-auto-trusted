@@ -83,7 +83,7 @@ jobs:
           Write-Host "Installer size: $([math]::Round($fileSize/1MB, 2)) MB"
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-installer
           path: dist/CertAutoTrust-Setup-1.0.0.exe
